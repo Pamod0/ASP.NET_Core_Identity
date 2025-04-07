@@ -56,7 +56,26 @@ namespace ASP.NET_Core_Identity.Services
                 return false;
             }
 
-            return await _userManager.CheckPasswordAsync(identityUser, loginUser.Password);
+            // Check if account is locked out
+            if (await _userManager.IsLockedOutAsync(identityUser))
+            {
+                return false;
+            }
+
+            var result = await _userManager.CheckPasswordAsync(identityUser, loginUser.Password);
+
+            if (!result)
+            {
+                // Increment failed login count
+                await _userManager.AccessFailedAsync(identityUser);
+            }
+            else
+            {
+                // Reset failed count on successful login
+                await _userManager.ResetAccessFailedCountAsync(identityUser);
+            }
+
+            return result;
         }
 
         public async Task<string> GenerateTokenString(LoginUser loginUser)
@@ -155,6 +174,43 @@ namespace ASP.NET_Core_Identity.Services
             return await SendConfirmationEmailAsync(user);
             // Dev Note: Consider adding rate limiting to the resend confirmation email endpoint to prevent abuse.
         }
+
+        public async Task<bool> SendPasswordResetEmailAsync(string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null || !(await _userManager.IsEmailConfirmedAsync(user)))
+            {
+                // Don't reveal that the user doesn't exist or isn't confirmed
+                return true;
+            }
+
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var resetLink = $"{_config["ClientApp:BaseUrl"]}/reset-password?email={WebUtility.UrlEncode(email)}&token={WebUtility.UrlEncode(token)}";
+
+            var emailBody = _env.IsDevelopment()
+                ? $"<p>Please reset your password by <a href='{resetLink}'>clicking here</a></p>"
+                : (await System.IO.File.ReadAllTextAsync("EmailTemplates/ResetPassword.html"))
+                    .Replace("{resetLink}", resetLink);
+
+            await _emailService.SendEmailAsync(
+                email,
+                "Reset your password",
+                emailBody);
+
+            return true;
+        }
+
+        public async Task<bool> ResetPasswordAsync(string email, string token, string newPassword)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return false;
+            }
+
+            var result = await _userManager.ResetPasswordAsync(user, token, newPassword);
+            return result.Succeeded;
+        }
     }
 
     public interface IAuthService
@@ -166,5 +222,7 @@ namespace ASP.NET_Core_Identity.Services
         Task<bool> SendConfirmationEmailAsync(IdentityUser user);
         Task<bool> ConfirmEmailAsync(string userId, string token);
         Task<bool> ResendConfirmationEmailAsync(string email);
+        Task<bool> SendPasswordResetEmailAsync(string email);
+        Task<bool> ResetPasswordAsync(string email, string token, string newPassword);
     }
 }

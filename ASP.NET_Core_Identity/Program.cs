@@ -72,9 +72,10 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("UserOnly", policy => policy.RequireRole("User"));
 });
 
+// Configure Token Lifespan
 builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
 {
-    options.TokenLifespan = TimeSpan.FromDays(3); // Set expiration to 3 days
+    options.TokenLifespan = TimeSpan.FromHours(24); // Set expiration to 24 hours
 });
 
 // Register services

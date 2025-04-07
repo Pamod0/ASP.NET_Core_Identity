@@ -152,5 +152,42 @@ namespace ASP.NET_Core_Identity.Controllers
 
             return Ok("Confirmation email resent successfully.");
         }
+
+        [HttpPost("ForgotPassword")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            await _authService.SendPasswordResetEmailAsync(request.Email);
+
+            // Always return success to prevent email enumeration attacks
+            return Ok("If your email is registered, you'll receive a password reset link.");
+        }
+
+        [HttpPost("ResetPassword")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.ResetPasswordAsync(
+                request.Email,
+                request.Token,
+                request.NewPassword);
+
+            if (!result)
+            {
+                return BadRequest("Password reset failed. The link may have expired or is invalid.");
+            }
+
+            return Ok("Password has been reset successfully.");
+        }
     }
 }
