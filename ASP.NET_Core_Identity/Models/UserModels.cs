@@ -26,4 +26,21 @@
         public string UserId { get; set; }
         public List<string> Roles { get; set; }
     }
+
+    public class EmailConfirmationRequest
+    {
+        public string UserId { get; set; }
+        public string Email { get; set; }
+        public string Token { get; set; }
+    }
+
+    public class ResendConfirmationEmailRequest
+    {
+        public string Email { get; set; }
+    }
+
+    public class ClientAppSettings
+    {
+        public string BaseUrl { get; set; }
+    }
 }

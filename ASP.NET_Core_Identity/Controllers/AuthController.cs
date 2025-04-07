@@ -30,16 +30,25 @@ namespace ASP.NET_Core_Identity.Controllers
                 return BadRequest(ModelState);
             }
 
-            var result = await _authService.RegisterUser(registerUser);
-            if (!result)
+            var identityUser = new IdentityUser
             {
-                return BadRequest("User registration failed.");
+                UserName = registerUser.Username,
+                Email = registerUser.Email
+            };
+
+            var result = await _userManager.CreateAsync(identityUser, registerUser.Password);
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors);
             }
 
             // Assign default role
-            await _authService.AssignRole(registerUser.Email, "User");
+            await _userManager.AddToRoleAsync(identityUser, "User");
 
-            return Ok("User registered successfully.");
+            // Send confirmation email
+            await _authService.SendConfirmationEmailAsync(identityUser);
+
+            return Ok("User registered successfully. Please check your email for confirmation instructions.");
         }
 
         [HttpPost("Login")]
@@ -108,6 +117,77 @@ namespace ASP.NET_Core_Identity.Controllers
                 user.EmailConfirmed,
                 Roles = roles
             });
+        }
+
+        [HttpPost("ConfirmEmail")]
+        public async Task<IActionResult> ConfirmEmail([FromBody] EmailConfirmationRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.ConfirmEmailAsync(request.UserId, request.Token);
+            if (!result)
+            {
+                return BadRequest("Email confirmation failed.");
+            }
+
+            return Ok("Email confirmed successfully.");
+        }
+
+        [HttpPost("ResendConfirmationEmail")]
+        public async Task<IActionResult> ResendConfirmationEmail([FromBody] ResendConfirmationEmailRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.ResendConfirmationEmailAsync(request.Email);
+            if (!result)
+            {
+                return BadRequest("Unable to resend confirmation email. The user may not exist or email may already be confirmed.");
+            }
+
+            return Ok("Confirmation email resent successfully.");
+        }
+
+        [HttpPost("ForgotPassword")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            await _authService.SendPasswordResetEmailAsync(request.Email);
+
+            // Always return success to prevent email enumeration attacks
+            return Ok("If your email is registered, you'll receive a password reset link.");
+        }
+
+        [HttpPost("ResetPassword")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _authService.ResetPasswordAsync(
+                request.Email,
+                request.Token,
+                request.NewPassword);
+
+            if (!result)
+            {
+                return BadRequest("Password reset failed. The link may have expired or is invalid.");
+            }
+
+            return Ok("Password has been reset successfully.");
         }
     }
 }

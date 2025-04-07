@@ -1,4 +1,5 @@
 using ASP.NET_Core_Identity.Data;
+using ASP.NET_Core_Identity.Models;
 using ASP.NET_Core_Identity.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -71,8 +72,21 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("UserOnly", policy => policy.RequireRole("User"));
 });
 
+// Configure Token Lifespan
+builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
+{
+    options.TokenLifespan = TimeSpan.FromHours(24); // Set expiration to 24 hours
+});
+
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Configure Email Service
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddTransient<IEmailService, EmailService>();
+
+// Add client app URL configuration
+builder.Services.Configure<ClientAppSettings>(builder.Configuration.GetSection("ClientApp"));
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
