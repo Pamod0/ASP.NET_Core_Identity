@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 using System.Text;
 
@@ -12,12 +13,21 @@ namespace ASP.NET_Core_Identity.Services
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _config;
+        private readonly IEmailService _emailService;
+        private readonly IWebHostEnvironment _env;
 
-        public AuthService(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration config)
+        public AuthService(
+            UserManager<IdentityUser> userManager, 
+            RoleManager<IdentityRole> roleManager, 
+            IConfiguration config, 
+            IEmailService emailService,
+            IWebHostEnvironment env)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _config = config;
+            _emailService = emailService;
+            _env = env;
         }
 
         public async Task<bool> RegisterUser(RegisterUser registerUser)
@@ -36,6 +46,12 @@ namespace ASP.NET_Core_Identity.Services
         {
             var identityUser = await _userManager.FindByEmailAsync(loginUser.Email);
             if (identityUser is null)
+            {
+                return false;
+            }
+
+            // Check if email is confirmed
+            if (!await _userManager.IsEmailConfirmedAsync(identityUser))
             {
                 return false;
             }
@@ -91,6 +107,54 @@ namespace ASP.NET_Core_Identity.Services
             await _userManager.AddToRoleAsync(user, roleName);
             return true;
         }
+
+        public async Task<bool> SendConfirmationEmailAsync(IdentityUser user)
+        {
+            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var confirmationLink = $"{_config["ClientApp:BaseUrl"]}/confirm-email?userId={user.Id}&token={WebUtility.UrlEncode(token)}";
+
+            string emailBody;
+            if (_env.IsDevelopment())
+            {
+                emailBody = $"<p>Please confirm your email by <a href='{confirmationLink}'>clicking here</a></p>";
+            }
+            else
+            {
+                var template = await System.IO.File.ReadAllTextAsync("EmailTemplates/ConfirmEmail.html");
+                emailBody = template.Replace("{confirmationLink}", confirmationLink);
+            }
+
+            await _emailService.SendEmailAsync(
+                user.Email,
+                "Confirm your email",
+                emailBody);
+
+            return true;
+        }
+
+        public async Task<bool> ConfirmEmailAsync(string userId, string token)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return false;
+            }
+
+            var result = await _userManager.ConfirmEmailAsync(user, token);
+            return result.Succeeded;
+        }
+
+        public async Task<bool> ResendConfirmationEmailAsync(string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null || await _userManager.IsEmailConfirmedAsync(user))
+            {
+                return false;
+            }
+
+            return await SendConfirmationEmailAsync(user);
+            // Dev Note: Consider adding rate limiting to the resend confirmation email endpoint to prevent abuse.
+        }
     }
 
     public interface IAuthService
@@ -99,5 +163,8 @@ namespace ASP.NET_Core_Identity.Services
         Task<bool> Login(LoginUser loginUser);
         Task<string> GenerateTokenString(LoginUser loginUser);
         Task<bool> AssignRole(string email, string roleName);
+        Task<bool> SendConfirmationEmailAsync(IdentityUser user);
+        Task<bool> ConfirmEmailAsync(string userId, string token);
+        Task<bool> ResendConfirmationEmailAsync(string email);
     }
 }
