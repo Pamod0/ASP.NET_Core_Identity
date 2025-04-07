@@ -43,4 +43,24 @@
     {
         public string BaseUrl { get; set; }
     }
+
+    public class Enable2FARequest
+    {
+        public string Email { get; set; }
+    }
+
+    public class Verify2FACodeRequest
+    {
+        public string Email { get; set; }
+        public string Code { get; set; }
+        public bool RememberDevice { get; set; }
+    }
+
+    public class TwoFactorResponse
+    {
+        public bool Success { get; set; }
+        public string[] RecoveryCodes { get; set; }
+        public string SharedKey { get; set; }
+        public string AuthenticatorUri { get; set; }
+    }
 }
