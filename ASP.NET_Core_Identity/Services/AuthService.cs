@@ -211,6 +211,97 @@ namespace ASP.NET_Core_Identity.Services
             var result = await _userManager.ResetPasswordAsync(user, token, newPassword);
             return result.Succeeded;
         }
+
+        public async Task<TwoFactorResponse> EnableTwoFactorAuth(string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return new TwoFactorResponse { Success = false };
+            }
+
+            // Generate the shared key and QR code URI
+            var sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
+            if (string.IsNullOrEmpty(sharedKey))
+            {
+                await _userManager.ResetAuthenticatorKeyAsync(user);
+                sharedKey = await _userManager.GetAuthenticatorKeyAsync(user);
+            }
+
+            var authenticatorUri = GenerateQrCodeUri(user.Email, sharedKey);
+
+            // Generate recovery codes
+            var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
+
+            return new TwoFactorResponse
+            {
+                Success = true,
+                SharedKey = sharedKey,
+                AuthenticatorUri = authenticatorUri,
+                RecoveryCodes = recoveryCodes.ToArray()
+            };
+        }
+
+        public async Task<bool> VerifyTwoFactorCode(string email, string code, bool rememberDevice)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return false;
+            }
+
+            var isCodeValid = await _userManager.VerifyTwoFactorTokenAsync(
+                user,
+                _userManager.Options.Tokens.AuthenticatorTokenProvider,
+                code);
+
+            if (isCodeValid && rememberDevice)
+            {
+                // Manually set the remember device flag
+                var userClaims = await _userManager.GetClaimsAsync(user);
+                var rememberDeviceClaim = userClaims.FirstOrDefault(c => c.Type == "RememberDevice");
+                if (rememberDeviceClaim != null)
+                {
+                    await _userManager.RemoveClaimAsync(user, rememberDeviceClaim);
+                }
+                await _userManager.AddClaimAsync(user, new Claim("RememberDevice", "true"));
+            }
+
+            return isCodeValid;
+        }
+
+        public async Task<bool> DisableTwoFactorAuth(string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return false;
+            }
+
+            var result = await _userManager.SetTwoFactorEnabledAsync(user, false);
+            return result.Succeeded;
+        }
+
+        public async Task<bool> VerifyRecoveryCode(string email, string code)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return false;
+            }
+
+            var result = await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, code);
+            return result.Succeeded;
+        }
+
+        private string GenerateQrCodeUri(string email, string sharedKey)
+        {
+            return string.Format(
+                "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6",
+                _config["Jwt:Issuer"],
+                email,
+                sharedKey);
+        }
     }
 
     public interface IAuthService
@@ -224,5 +315,9 @@ namespace ASP.NET_Core_Identity.Services
         Task<bool> ResendConfirmationEmailAsync(string email);
         Task<bool> SendPasswordResetEmailAsync(string email);
         Task<bool> ResetPasswordAsync(string email, string token, string newPassword);
+        Task<TwoFactorResponse> EnableTwoFactorAuth(string email);
+        Task<bool> VerifyTwoFactorCode(string email, string code, bool rememberDevice);
+        Task<bool> DisableTwoFactorAuth(string email);
+        Task<bool> VerifyRecoveryCode(string email, string code);
     }
 }

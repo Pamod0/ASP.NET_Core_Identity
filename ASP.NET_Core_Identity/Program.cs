@@ -19,7 +19,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Add Identity
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();
+    .AddDefaultTokenProviders()
+    .AddTokenProvider<AuthenticatorTokenProvider<IdentityUser>>("Authenticator");
 
 // Configure Identity options
 builder.Services.Configure<IdentityOptions>(options =>
@@ -31,6 +32,11 @@ builder.Services.Configure<IdentityOptions>(options =>
     options.Password.RequireUppercase = true;
     options.Password.RequiredLength = 8;
     options.Password.RequiredUniqueChars = 1;
+
+    // 2FA settings
+    options.Tokens.AuthenticatorTokenProvider = "Authenticator";
+    options.SignIn.RequireConfirmedEmail = true;
+    options.SignIn.RequireConfirmedPhoneNumber = false;
 
     // Lockout settings
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);

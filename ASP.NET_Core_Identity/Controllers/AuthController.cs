@@ -59,13 +59,78 @@ namespace ASP.NET_Core_Identity.Controllers
                 return BadRequest(ModelState);
             }
 
+            var user = await _userManager.FindByEmailAsync(loginUser.Email);
+            if (user == null)
+            {
+                return BadRequest("Invalid login attempt.");
+            }
+
+            // Check password
+            if (!await _userManager.CheckPasswordAsync(user, loginUser.Password))
+            {
+                return BadRequest("Invalid login attempt.");
+            }
+
             if (!await _authService.Login(loginUser))
             {
                 return BadRequest("Invalid login attempt.");
             }
 
+            // Check if 2FA is enabled
+            if (await _userManager.GetTwoFactorEnabledAsync(user))
+            {
+                // Generate and send 2FA token (if using email/SMS)
+                // Or return response indicating 2FA is required
+                var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email"); // or "Phone" or "Authenticator"
+
+                return Ok(new
+                {
+                    RequiresTwoFactor = true,
+                    Providers = await _userManager.GetValidTwoFactorProvidersAsync(user)
+                });
+            }
+
+
+            // Generate regular JWT token
             var tokenString = await _authService.GenerateTokenString(loginUser);
-            var user = await _userManager.FindByEmailAsync(loginUser.Email);
+            var roles = await _userManager.GetRolesAsync(user);
+
+            return Ok(new AuthResponse
+            {
+                Token = tokenString,
+                Expiration = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:ExpireInMinutes")),
+                UserId = user.Id,
+                Roles = roles.ToList()
+            });
+        }
+
+        [HttpPost("LoginWith2fa")]
+        public async Task<ActionResult<AuthResponse>> LoginWith2fa([FromBody] Verify2FACodeRequest request)
+        {
+            var user = await _userManager.FindByEmailAsync(request.Email);
+            if (user == null)
+            {
+                return BadRequest("Invalid login attempt.");
+            }
+
+            // Verify 2FA code
+            var isCodeValid = await _userManager.VerifyTwoFactorTokenAsync(
+                user,
+                _userManager.Options.Tokens.AuthenticatorTokenProvider,
+                request.Code);
+
+            if (!isCodeValid)
+            {
+                return BadRequest("Invalid verification code.");
+            }
+
+            // Generate JWT token
+            var tokenString = await _authService.GenerateTokenString(new LoginUser
+            {
+                Email = request.Email,
+                Password = "" // Not needed since we already verified the user
+            });
+
             var roles = await _userManager.GetRolesAsync(user);
 
             return Ok(new AuthResponse
@@ -188,6 +253,89 @@ namespace ASP.NET_Core_Identity.Controllers
             }
 
             return Ok("Password has been reset successfully.");
+        }
+
+        [HttpPost("Enable2FA")]
+        [Authorize]
+        public async Task<ActionResult<TwoFactorResponse>> EnableTwoFactorAuth()
+        {
+            var email = User.FindFirstValue(ClaimTypes.Email);
+            var result = await _authService.EnableTwoFactorAuth(email);
+
+            if (!result.Success)
+            {
+                return BadRequest("Failed to enable 2FA.");
+            }
+
+            return Ok(result);
+        }
+
+        [HttpPost("Verify2FACode")]
+        [Authorize]
+        public async Task<IActionResult> VerifyTwoFactorCode([FromBody] Verify2FACodeRequest request)
+        {
+            var email = User.FindFirstValue(ClaimTypes.Email);
+            var isValid = await _authService.VerifyTwoFactorCode(email, request.Code, request.RememberDevice);
+
+            if (!isValid)
+            {
+                return BadRequest("Invalid verification code.");
+            }
+
+            // Enable 2FA after successful verification
+            var user = await _userManager.FindByEmailAsync(email);
+            await _userManager.SetTwoFactorEnabledAsync(user, true);
+
+            return Ok("Two-factor authentication has been enabled successfully.");
+        }
+
+        [HttpPost("Disable2FA")]
+        [Authorize]
+        public async Task<IActionResult> DisableTwoFactorAuth()
+        {
+            var email = User.FindFirstValue(ClaimTypes.Email);
+            var success = await _authService.DisableTwoFactorAuth(email);
+
+            if (!success)
+            {
+                return BadRequest("Failed to disable 2FA.");
+            }
+
+            return Ok("Two-factor authentication has been disabled.");
+        }
+
+        [HttpPost("VerifyRecoveryCode")]
+        [AllowAnonymous]
+        public async Task<ActionResult<AuthResponse>> VerifyRecoveryCode([FromBody] Verify2FACodeRequest request)
+        {
+            var user = await _userManager.FindByEmailAsync(request.Email);
+            if (user == null)
+            {
+                return BadRequest("Invalid request.");
+            }
+
+            var isValid = await _authService.VerifyRecoveryCode(request.Email, request.Code);
+            if (!isValid)
+            {
+                return BadRequest("Invalid recovery code.");
+            }
+
+            // Generate JWT token
+            var tokenString = await _authService.GenerateTokenString(new LoginUser
+            {
+                Email = request.Email,
+                Password = "" // Not needed since we're using recovery code
+            });
+
+            var roles = await _userManager.GetRolesAsync(user);
+
+            return Ok(new AuthResponse
+            {
+                Token = tokenString,
+                Expiration = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:ExpireInMinutes")),
+                UserId = user.Id,
+                Roles = roles.ToList()
+            });
         }
     }
 }
