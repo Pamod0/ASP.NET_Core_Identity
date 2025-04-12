@@ -32,7 +32,7 @@ namespace ASP.NET_Core_Identity.Controllers
 
             var identityUser = new IdentityUser
             {
-                UserName = registerUser.Username,
+                UserName = registerUser.Email,
                 Email = registerUser.Email
             };
 
@@ -48,7 +48,7 @@ namespace ASP.NET_Core_Identity.Controllers
             // Send confirmation email
             await _authService.SendConfirmationEmailAsync(identityUser);
 
-            return Ok("User registered successfully. Please check your email for confirmation instructions.");
+            return Ok(new { message = "User registered successfully. Please check your email for confirmation instructions." });
         }
 
         [HttpPost("Login")]
@@ -62,18 +62,52 @@ namespace ASP.NET_Core_Identity.Controllers
             var user = await _userManager.FindByEmailAsync(loginUser.Email);
             if (user == null)
             {
-                return BadRequest("Invalid login attempt.");
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = new AuthErrorResponse.ErrorDetails
+                    {
+                        Message = AuthErrorMessages.InvalidLoginAttempt,
+                        Code = "LoginFailed",
+                        Status = 400
+                    },
+                    Status = 400,
+                    StatusText = "Bad Request",
+                    Message = AuthErrorMessages.InvalidLoginAttempt
+                });
             }
 
             // Check password
             if (!await _userManager.CheckPasswordAsync(user, loginUser.Password))
             {
-                return BadRequest("Invalid login attempt.");
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = new AuthErrorResponse.ErrorDetails
+                    {
+                        Message = AuthErrorMessages.InvalidLoginAttempt,
+                        Code = "LoginFailed",
+                        Status = 400
+                    },
+                    Status = 400,
+                    StatusText = "Bad Request",
+                    Message = AuthErrorMessages.InvalidLoginAttempt
+                });
             }
 
-            if (!await _authService.Login(loginUser))
+            var loginResult = await _authService.Login(loginUser);
+            if (!loginResult.Success)
             {
-                return BadRequest("Invalid login attempt.");
+                return BadRequest(new AuthErrorResponse
+                {
+                    Error = new AuthErrorResponse.ErrorDetails
+                    {
+                        Message = loginResult.ErrorMessage,
+                        Code = "LoginFailed",
+                        Status = 400
+                    },
+                    Status = 400,
+                    StatusText = "Bad Request",
+                    Message = loginResult.ErrorMessage
+                });
             }
 
             // Check if 2FA is enabled
@@ -86,10 +120,10 @@ namespace ASP.NET_Core_Identity.Controllers
                 return Ok(new
                 {
                     RequiresTwoFactor = true,
-                    Providers = await _userManager.GetValidTwoFactorProvidersAsync(user)
+                    Providers = await _userManager.GetValidTwoFactorProvidersAsync(user),
+                    Message = AuthErrorMessages.TwoFactorRequired
                 });
             }
-
 
             // Generate regular JWT token
             var tokenString = await _authService.GenerateTokenString(loginUser);

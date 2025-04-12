@@ -42,24 +42,24 @@ namespace ASP.NET_Core_Identity.Services
             return result.Succeeded;
         }
 
-        public async Task<bool> Login(LoginUser loginUser)
+        public async Task<LoginResult> Login(LoginUser loginUser)
         {
             var identityUser = await _userManager.FindByEmailAsync(loginUser.Email);
             if (identityUser is null)
             {
-                return false;
+                return new LoginResult { Success = false, ErrorMessage = AuthErrorMessages.InvalidLoginAttempt };
             }
 
             // Check if email is confirmed
             if (!await _userManager.IsEmailConfirmedAsync(identityUser))
             {
-                return false;
+                return new LoginResult { Success = false, ErrorMessage = AuthErrorMessages.EmailNotConfirmed };
             }
 
             // Check if account is locked out
             if (await _userManager.IsLockedOutAsync(identityUser))
             {
-                return false;
+                return new LoginResult { Success = false, ErrorMessage = AuthErrorMessages.AccountLockedOut };
             }
 
             var result = await _userManager.CheckPasswordAsync(identityUser, loginUser.Password);
@@ -68,14 +68,14 @@ namespace ASP.NET_Core_Identity.Services
             {
                 // Increment failed login count
                 await _userManager.AccessFailedAsync(identityUser);
+                return new LoginResult { Success = false, ErrorMessage = AuthErrorMessages.InvalidLoginAttempt };
             }
             else
             {
                 // Reset failed count on successful login
                 await _userManager.ResetAccessFailedCountAsync(identityUser);
+                return new LoginResult { Success = true };
             }
-
-            return result;
         }
 
         public async Task<string> GenerateTokenString(LoginUser loginUser)
@@ -307,7 +307,7 @@ namespace ASP.NET_Core_Identity.Services
     public interface IAuthService
     {
         Task<bool> RegisterUser(RegisterUser registerUser);
-        Task<bool> Login(LoginUser loginUser);
+        Task<LoginResult> Login(LoginUser loginUser);
         Task<string> GenerateTokenString(LoginUser loginUser);
         Task<bool> AssignRole(string email, string roleName);
         Task<bool> SendConfirmationEmailAsync(IdentityUser user);

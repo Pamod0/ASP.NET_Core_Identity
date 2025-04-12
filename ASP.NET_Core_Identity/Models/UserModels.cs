@@ -2,7 +2,7 @@
 {
     public class RegisterUser
     {
-        public string Username { get; set; }
+        public string? Username { get; set; }
         public string Email { get; set; }
         public string Password { get; set; }
     }
@@ -25,6 +25,21 @@
         public DateTime Expiration { get; set; }
         public string UserId { get; set; }
         public List<string> Roles { get; set; }
+    }
+
+    public class AuthErrorResponse
+    {
+        public ErrorDetails Error { get; set; }
+        public int? Status { get; set; }
+        public string StatusText { get; set; }
+        public string Message { get; set; }
+
+        public class ErrorDetails
+        {
+            public string Message { get; set; }
+            public string Code { get; set; }
+            public int? Status { get; set; }
+        }
     }
 
     public class EmailConfirmationRequest
