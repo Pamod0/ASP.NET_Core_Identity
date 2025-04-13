@@ -19,6 +19,13 @@
         public string RoleName { get; set; }
     }
 
+    public class ApiResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; }
+    }
+
+
     public class AuthResponse
     {
         public string Token { get; set; }
@@ -45,7 +52,7 @@
     public class EmailConfirmationRequest
     {
         public string UserId { get; set; }
-        public string Email { get; set; }
+        //public string Email { get; set; }
         public string Token { get; set; }
     }
 

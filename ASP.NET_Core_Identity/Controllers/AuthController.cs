@@ -39,7 +39,11 @@ namespace ASP.NET_Core_Identity.Controllers
             var result = await _userManager.CreateAsync(identityUser, registerUser.Password);
             if (!result.Succeeded)
             {
-                return BadRequest(result.Errors);
+                var actualError = result.Errors;
+                return BadRequest(new ApiResponse 
+                { 
+                    Success = false, Message = AuthErrorMessages.RegistrationFailed 
+                });
             }
 
             // Assign default role
@@ -48,7 +52,10 @@ namespace ASP.NET_Core_Identity.Controllers
             // Send confirmation email
             await _authService.SendConfirmationEmailAsync(identityUser);
 
-            return Ok(new { message = "User registered successfully. Please check your email for confirmation instructions." });
+            return Ok(new 
+            { 
+                message = "User registered successfully. Please check your email for confirmation instructions." 
+            });
         }
 
         [HttpPost("Login")]
@@ -232,7 +239,7 @@ namespace ASP.NET_Core_Identity.Controllers
                 return BadRequest("Email confirmation failed.");
             }
 
-            return Ok("Email confirmed successfully.");
+            return Ok(new ApiResponse {  Success = true, Message = "Email confirmed successfully." });
         }
 
         [HttpPost("ResendConfirmationEmail")]

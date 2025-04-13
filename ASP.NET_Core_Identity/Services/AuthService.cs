@@ -158,7 +158,7 @@ namespace ASP.NET_Core_Identity.Services
             {
                 return false;
             }
-
+            // Dev Note: Consider already confirmed accounts.
             var result = await _userManager.ConfirmEmailAsync(user, token);
             return result.Succeeded;
         }
