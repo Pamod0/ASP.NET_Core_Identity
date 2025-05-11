@@ -1,6 +1,7 @@
 using ASP.NET_Core_Identity.Data;
 using ASP.NET_Core_Identity.Models;
 using ASP.NET_Core_Identity.Services;
+using ASP.NET_Core_Identity.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

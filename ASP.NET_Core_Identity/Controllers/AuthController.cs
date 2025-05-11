@@ -1,5 +1,5 @@
 ﻿using ASP.NET_Core_Identity.Models;
-using ASP.NET_Core_Identity.Services;
+using ASP.NET_Core_Identity.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -271,7 +271,10 @@ namespace ASP.NET_Core_Identity.Controllers
             await _authService.SendPasswordResetEmailAsync(request.Email);
 
             // Always return success to prevent email enumeration attacks
-            return Ok("If your email is registered, you'll receive a password reset link.");
+            return Ok(new
+            {
+                message = "If your email is registered, you'll receive a password reset link."
+            });
         }
 
         [HttpPost("ResetPassword")]
@@ -293,7 +296,10 @@ namespace ASP.NET_Core_Identity.Controllers
                 return BadRequest("Password reset failed. The link may have expired or is invalid.");
             }
 
-            return Ok("Password has been reset successfully.");
+            return Ok(new
+            {
+                message = "Password has been reset successfully."
+            });
         }
 
         [HttpPost("Enable2FA")]

@@ -1,4 +1,5 @@
 ﻿using ASP.NET_Core_Identity.Models;
+using ASP.NET_Core_Identity.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -185,7 +186,7 @@ namespace ASP.NET_Core_Identity.Services
             }
 
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var resetLink = $"{_config["ClientApp:BaseUrl"]}/reset-password?email={WebUtility.UrlEncode(email)}&token={WebUtility.UrlEncode(token)}";
+            var resetLink = $"{_config["ClientApp:BaseUrl"]}/auth/reset-password?email={WebUtility.UrlEncode(email)}&token={WebUtility.UrlEncode(token)}";
 
             var emailBody = _env.IsDevelopment()
                 ? $"<p>Please reset your password by <a href='{resetLink}'>clicking here</a></p>"
@@ -302,22 +303,5 @@ namespace ASP.NET_Core_Identity.Services
                 email,
                 sharedKey);
         }
-    }
-
-    public interface IAuthService
-    {
-        Task<bool> RegisterUser(RegisterUser registerUser);
-        Task<LoginResult> Login(LoginUser loginUser);
-        Task<string> GenerateTokenString(LoginUser loginUser);
-        Task<bool> AssignRole(string email, string roleName);
-        Task<bool> SendConfirmationEmailAsync(IdentityUser user);
-        Task<bool> ConfirmEmailAsync(string userId, string token);
-        Task<bool> ResendConfirmationEmailAsync(string email);
-        Task<bool> SendPasswordResetEmailAsync(string email);
-        Task<bool> ResetPasswordAsync(string email, string token, string newPassword);
-        Task<TwoFactorResponse> EnableTwoFactorAuth(string email);
-        Task<bool> VerifyTwoFactorCode(string email, string code, bool rememberDevice);
-        Task<bool> DisableTwoFactorAuth(string email);
-        Task<bool> VerifyRecoveryCode(string email, string code);
     }
 }
