@@ -41,6 +41,7 @@ namespace ASP.NET_Core_Identity.Controllers
                         Success = false,
                         Message = "Invalid request data",
                         Errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)
+
                     });
                 }
 
@@ -66,90 +67,34 @@ namespace ASP.NET_Core_Identity.Controllers
         }
 
         [HttpPost("Login")]
-        public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginUser loginUser)
+        public async Task<ActionResult<ApiResponse>> Login([FromBody] LoginUser loginUser)
         {
-            if (!ModelState.IsValid)
+            try
             {
-                return BadRequest(ModelState);
-            }
-
-            var user = await _userManager.FindByEmailAsync(loginUser.Email);
-            if (user == null)
-            {
-                return BadRequest(new AuthErrorResponse
+                if (!ModelState.IsValid)
                 {
-                    Error = new AuthErrorResponse.ErrorDetails
-                    {
-                        Message = AuthErrorMessages.InvalidLoginAttempt,
-                        Code = "LoginFailed",
-                        Status = 400
-                    },
-                    Status = 400,
-                    StatusText = "Bad Request",
-                    Message = AuthErrorMessages.InvalidLoginAttempt
+                    return BadRequest(ModelState);
+                }
+
+                var result = await _authService.Login(loginUser);
+
+                if (!result.Success)
+                {
+                    return BadRequest(result);
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during user login");
+                return StatusCode(500, new ApiResponse
+                {
+                    Success = false,
+                    Message = "An unexpected error occurred during login.",
+                    Errors = new[] { ex.Message }
                 });
             }
-
-            // Check password
-            if (!await _userManager.CheckPasswordAsync(user, loginUser.Password))
-            {
-                return BadRequest(new AuthErrorResponse
-                {
-                    Error = new AuthErrorResponse.ErrorDetails
-                    {
-                        Message = AuthErrorMessages.InvalidLoginAttempt,
-                        Code = "LoginFailed",
-                        Status = 400
-                    },
-                    Status = 400,
-                    StatusText = "Bad Request",
-                    Message = AuthErrorMessages.InvalidLoginAttempt
-                });
-            }
-
-            var loginResult = await _authService.Login(loginUser);
-            if (!loginResult.Success)
-            {
-                return BadRequest(new AuthErrorResponse
-                {
-                    Error = new AuthErrorResponse.ErrorDetails
-                    {
-                        Message = loginResult.ErrorMessage,
-                        Code = "LoginFailed",
-                        Status = 400
-                    },
-                    Status = 400,
-                    StatusText = "Bad Request",
-                    Message = loginResult.ErrorMessage
-                });
-            }
-
-            // Check if 2FA is enabled
-            if (await _userManager.GetTwoFactorEnabledAsync(user))
-            {
-                // Generate and send 2FA token (if using email/SMS)
-                // Or return response indicating 2FA is required
-                var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email"); // or "Phone" or "Authenticator"
-
-                return Ok(new
-                {
-                    RequiresTwoFactor = true,
-                    Providers = await _userManager.GetValidTwoFactorProvidersAsync(user),
-                    Message = AuthErrorMessages.TwoFactorRequired
-                });
-            }
-
-            // Generate regular JWT token
-            var tokenString = await _authService.GenerateTokenString(loginUser);
-            var roles = await _userManager.GetRolesAsync(user);
-
-            return Ok(new AuthResponse
-            {
-                Token = tokenString,
-                Expiration = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:ExpireInMinutes")),
-                UserId = user.Id,
-                Roles = roles.ToList()
-            });
         }
 
         [HttpPost("LoginWith2fa")]
