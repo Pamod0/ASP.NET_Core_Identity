@@ -1,4 +1,5 @@
-﻿using ASP.NET_Core_Identity.Models;
+﻿using ASP.NET_Core_Identity.DTOs;
+using ASP.NET_Core_Identity.Models;
 using ASP.NET_Core_Identity.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -11,51 +12,57 @@ namespace ASP.NET_Core_Identity.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
+        private readonly IConfiguration _config;
+        private readonly ILogger<AuthController> _logger;
         private readonly IAuthService _authService;
         private readonly UserManager<IdentityUser> _userManager;
-        private readonly IConfiguration _config;
 
-        public AuthController(IAuthService authService, UserManager<IdentityUser> userManager, IConfiguration config)
+        public AuthController(
+            IConfiguration config,
+            ILogger<AuthController> logger,
+            IAuthService authService, 
+            UserManager<IdentityUser> userManager)
         {
+            _config = config;
+            _logger = logger;
             _authService = authService;
             _userManager = userManager;
-            _config = config;
         }
 
         [HttpPost("Register")]
-        public async Task<IActionResult> Register([FromBody] RegisterUser registerUser)
+        public async Task<ActionResult<ApiResponse>> Register([FromBody] RegisterUserDTO registerUser)
         {
-            if (!ModelState.IsValid)
+            try
             {
-                return BadRequest(ModelState);
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new ApiResponse
+                    {
+                        Success = false,
+                        Message = "Invalid request data",
+                        Errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)
+                    });
+                }
+
+                var result = await _authService.RegisterUserAsync(registerUser);
+
+                if (!result.Success)
+                {
+                    return BadRequest(result);
+                }
+
+                return Ok(result);
             }
-
-            var identityUser = new IdentityUser
+            catch (Exception ex)
             {
-                UserName = registerUser.Email,
-                Email = registerUser.Email
-            };
-
-            var result = await _userManager.CreateAsync(identityUser, registerUser.Password);
-            if (!result.Succeeded)
-            {
-                var actualError = result.Errors;
-                return BadRequest(new ApiResponse 
-                { 
-                    Success = false, Message = AuthErrorMessages.RegistrationFailed 
+                _logger.LogError(ex, "Error during user registration");
+                return StatusCode(500, new ApiResponse
+                {
+                    Success = false,
+                    Message = "An unexpected error occurred during registration.",
+                    Errors = new[] { ex.Message }
                 });
             }
-
-            // Assign default role
-            await _userManager.AddToRoleAsync(identityUser, "User");
-
-            // Send confirmation email
-            await _authService.SendConfirmationEmailAsync(identityUser);
-
-            return Ok(new 
-            { 
-                message = "User registered successfully. Please check your email for confirmation instructions." 
-            });
         }
 
         [HttpPost("Login")]

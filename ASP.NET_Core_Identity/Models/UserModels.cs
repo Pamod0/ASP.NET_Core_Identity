@@ -1,12 +1,5 @@
 ﻿namespace ASP.NET_Core_Identity.Models
 {
-    public class RegisterUser
-    {
-        public string? Username { get; set; }
-        public string Email { get; set; }
-        public string Password { get; set; }
-    }
-
     public class LoginUser
     {
         public string Email { get; set; }
@@ -18,13 +11,6 @@
         public string Email { get; set; }
         public string RoleName { get; set; }
     }
-
-    public class ApiResponse
-    {
-        public bool Success { get; set; }
-        public string Message { get; set; }
-    }
-
 
     public class AuthResponse
     {

@@ -1,4 +1,5 @@
-﻿using ASP.NET_Core_Identity.Models;
+﻿using ASP.NET_Core_Identity.DTOs;
+using ASP.NET_Core_Identity.Models;
 using ASP.NET_Core_Identity.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
@@ -11,36 +12,83 @@ namespace ASP.NET_Core_Identity.Services
 {
     public class AuthService : IAuthService
     {
+        private readonly IConfiguration _config;
+        private readonly ILogger<AuthService> _logger;
+        private readonly IWebHostEnvironment _env;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
-        private readonly IConfiguration _config;
         private readonly IEmailService _emailService;
-        private readonly IWebHostEnvironment _env;
 
         public AuthService(
+            IConfiguration config,
+            ILogger<AuthService> logger,
+            IWebHostEnvironment env,
             UserManager<IdentityUser> userManager, 
-            RoleManager<IdentityRole> roleManager, 
-            IConfiguration config, 
-            IEmailService emailService,
-            IWebHostEnvironment env)
+            RoleManager<IdentityRole> roleManager,
+            IEmailService emailService)
         {
+            _config = config;
+            _logger = logger;
+            _env = env;
             _userManager = userManager;
             _roleManager = roleManager;
-            _config = config;
             _emailService = emailService;
-            _env = env;
         }
 
-        public async Task<bool> RegisterUser(RegisterUser registerUser)
+        public async Task<RegistrationResult> RegisterUserAsync(RegisterUserDTO registerUser)
         {
-            var identityUser = new IdentityUser
+            try
             {
-                UserName = registerUser.Username,
-                Email = registerUser.Email
-            };
+                var user = new IdentityUser
+                {
+                    UserName = String.IsNullOrEmpty(registerUser.Username) ? registerUser.Email : registerUser.Username,
+                    Email = registerUser.Email
+                };
 
-            var result = await _userManager.CreateAsync(identityUser, registerUser.Password);
-            return result.Succeeded;
+                var creationResult = await _userManager.CreateAsync(user, registerUser.Password);
+
+                if (!creationResult.Succeeded)
+                {
+                    var errors = creationResult.Errors.Select(e => e.Description);
+                    _logger.LogWarning("User creation failed: {Errors}", string.Join(", ", errors));
+
+                    return new RegistrationResult
+                    {
+                        Success = false,
+                        Message = AuthErrorMessages.RegistrationFailed,
+                        Errors = errors
+                    };
+                }
+
+                // Assign default role
+                var roleResult = await _userManager.AddToRoleAsync(user, "User");
+                if (!roleResult.Succeeded)
+                {
+                    _logger.LogWarning("Role assignment failed for user {UserId}", user.Id);
+                    // Continue despite role assignment failure - user is still created
+                }
+
+                // Send confirmation email (fire and forget)
+                _ = SendConfirmationEmailAsync(user);
+
+                return new RegistrationResult
+                {
+                    Success = true,
+                    Message = AuthSuccessMessages.RegistrationSuccess
+                };
+            }
+
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred during user registration for email {Email}", registerUser.Email);
+                //return new RegistrationResult
+                //{
+                //    Success = false,
+                //    Message = AuthErrorMessages.RegistrationFailed,
+                //    Errors = new[] { ex.Message }
+                //};
+                throw; // Let the controller handle the exception
+            }
         }
 
         public async Task<LoginResult> Login(LoginUser loginUser)

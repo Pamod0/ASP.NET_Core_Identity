@@ -1,11 +1,12 @@
-﻿using ASP.NET_Core_Identity.Models;
+﻿using ASP.NET_Core_Identity.DTOs;
+using ASP.NET_Core_Identity.Models;
 using Microsoft.AspNetCore.Identity;
 
 namespace ASP.NET_Core_Identity.Services.Interfaces
 {
     public interface IAuthService
     {
-        Task<bool> RegisterUser(RegisterUser registerUser);
+        Task<RegistrationResult> RegisterUserAsync(RegisterUserDTO registerUser);
         Task<LoginResult> Login(LoginUser loginUser);
         Task<string> GenerateTokenString(LoginUser loginUser);
         Task<bool> AssignRole(string email, string roleName);
