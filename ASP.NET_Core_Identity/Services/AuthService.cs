@@ -1,5 +1,6 @@
 ﻿using ASP.NET_Core_Identity.DTOs;
-using ASP.NET_Core_Identity.Models;
+using ASP.NET_Core_Identity.Models.Auth;
+using ASP.NET_Core_Identity.Models.User;
 using ASP.NET_Core_Identity.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;

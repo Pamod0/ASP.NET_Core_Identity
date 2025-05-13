@@ -1,8 +1,8 @@
-﻿using ASP.NET_Core_Identity.Data;
-using ASP.NET_Core_Identity.DTOs;
+﻿using ASP.NET_Core_Identity.DTOs;
+using ASP.NET_Core_Identity.Models;
+using ASP.NET_Core_Identity.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace ASP.NET_Core_Identity.Controllers
 {
@@ -12,35 +12,25 @@ namespace ASP.NET_Core_Identity.Controllers
     {
         private readonly ILogger<UserController> _logger;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly IUserService _userService;
 
-        public UserController(UserManager<IdentityUser> userManager, ILogger<UserController> logger)
+        public UserController(
+            ILogger<UserController> logger,
+            UserManager<IdentityUser> userManager,
+            IUserService userService)
         {
             _logger = logger;
             _userManager = userManager;
+            _userService = userService;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserDTO>>> GetAll()
+        public async Task<ActionResult<IEnumerable<UserDTO>>> GetAll([FromQuery] PagedRequest request)
         {
             try
             {
-                var users = await _userManager.Users
-                    .Select(u => new UserDTO 
-                    {
-                        Id = u.Id,
-                        UserName = u.UserName,
-                        Email = u.Email,
-                        EmailConfirmed = u.EmailConfirmed,
-                        PhoneNumber = u.PhoneNumber,
-                        PhoneNumberConfirmed = u.PhoneNumberConfirmed,
-                        TwoFactorEnabled = u.TwoFactorEnabled,
-                        LockoutEnd = u.LockoutEnd,
-                        LockoutEnabled = u.LockoutEnabled,
-                        AccessFailedCount = u.AccessFailedCount
-                    })
-                    .ToListAsync();
-
-                return Ok(users);
+                var result = await _userService.GetAllUsersAsync(request);
+                return Ok(result);
             }
             catch (Exception ex)
             {

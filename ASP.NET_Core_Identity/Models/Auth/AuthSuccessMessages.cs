@@ -1,4 +1,4 @@
-﻿namespace ASP.NET_Core_Identity.Models
+﻿namespace ASP.NET_Core_Identity.Models.Auth
 {
     public static class AuthSuccessMessages
     {

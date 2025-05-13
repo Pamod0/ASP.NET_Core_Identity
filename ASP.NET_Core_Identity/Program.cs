@@ -1,5 +1,5 @@
 using ASP.NET_Core_Identity.Data;
-using ASP.NET_Core_Identity.Models;
+using ASP.NET_Core_Identity.Models.User;
 using ASP.NET_Core_Identity.Services;
 using ASP.NET_Core_Identity.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -97,6 +97,7 @@ builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
 
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // Configure Email Service
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
