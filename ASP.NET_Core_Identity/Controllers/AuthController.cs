@@ -155,30 +155,6 @@ namespace ASP.NET_Core_Identity.Controllers
             return Ok($"Role {userRole.RoleName} assigned to {userRole.Email} successfully.");
         }
 
-        [HttpGet("UserInfo")]
-        [Authorize]
-        public async Task<IActionResult> GetUserInfo()
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var user = await _userManager.FindByIdAsync(userId);
-
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            var roles = await _userManager.GetRolesAsync(user);
-
-            return Ok(new
-            {
-                user.Id,
-                user.UserName,
-                user.Email,
-                user.EmailConfirmed,
-                Roles = roles
-            });
-        }
-
         [HttpPost("ConfirmEmail")]
         public async Task<IActionResult> ConfirmEmail([FromBody] EmailConfirmationRequest request)
         {

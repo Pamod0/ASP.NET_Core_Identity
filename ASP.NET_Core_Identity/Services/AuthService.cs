@@ -94,70 +94,78 @@ namespace ASP.NET_Core_Identity.Services
 
         public async Task<LoginResult> Login(LoginUser loginUser)
         {
-            var user = await _userManager.FindByEmailAsync(loginUser.Email);
-            if (user is null)
+            try
             {
-                return new LoginResult { Success = false, Message = AuthErrorMessages.InvalidLoginAttempt };
-            }
+                var user = await _userManager.FindByEmailAsync(loginUser.Email);
+                if (user is null)
+                {
+                    return new LoginResult { Success = false, Message = AuthErrorMessages.InvalidLoginAttempt };
+                }
 
-            if (!await _userManager.IsEmailConfirmedAsync(user))
-            {
-                return new LoginResult { Success = false, Message = AuthErrorMessages.EmailNotConfirmed };
-            }
+                if (!await _userManager.IsEmailConfirmedAsync(user))
+                {
+                    return new LoginResult { Success = false, Message = AuthErrorMessages.EmailNotConfirmed };
+                }
 
-            // Check if account is locked out
-            if (await _userManager.IsLockedOutAsync(user))
-            {
-                return new LoginResult { Success = false, Message = AuthErrorMessages.AccountLockedOut };
-            }
+                // Check if account is locked out
+                if (await _userManager.IsLockedOutAsync(user))
+                {
+                    return new LoginResult { Success = false, Message = AuthErrorMessages.AccountLockedOut };
+                }
 
-            // Check if 2FA is enabled
-            if (await _userManager.GetTwoFactorEnabledAsync(user))
-            {
-                // Generate and send 2FA token (if using email/SMS)
-                // Or return response indicating 2FA is required
-                var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email"); // or "Phone" or "Authenticator"
+                // Check if 2FA is enabled
+                if (await _userManager.GetTwoFactorEnabledAsync(user))
+                {
+                    // Generate and send 2FA token (if using email/SMS)
+                    // Or return response indicating 2FA is required
+                    var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email"); // or "Phone" or "Authenticator"
+
+                    return new LoginResult
+                    {
+                        RequiresTwoFactor = true,
+                        Providers = await _userManager.GetValidTwoFactorProvidersAsync(user),
+                        Message = AuthErrorMessages.TwoFactorRequired
+                    };
+                }
+
+                var result = await _userManager.CheckPasswordAsync(user, loginUser.Password);
+
+                if (!result)
+                {
+                    // Increment failed login count
+                    await _userManager.AccessFailedAsync(user);
+                    return new LoginResult
+                    {
+                        Success = false,
+                        Message = AuthErrorMessages.InvalidLoginAttempt,
+                        Errors = [$"{AuthErrorMessages.InvalidLoginAttempt}"]
+                    };
+                }
+                else
+                {
+                    // Reset failed count on successful login
+                    await _userManager.ResetAccessFailedCountAsync(user);
+                }
+
+                // Generate regular JWT token
+                var tokenString = await GenerateTokenString(loginUser);
+                var roles = await _userManager.GetRolesAsync(user);
 
                 return new LoginResult
                 {
-                    RequiresTwoFactor = true,
-                    Providers = await _userManager.GetValidTwoFactorProvidersAsync(user),
-                    Message = AuthErrorMessages.TwoFactorRequired
+                    Success = true,
+                    Message = AuthSuccessMessages.LoginSuccess,
+                    Token = tokenString,
+                    Expiration = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:ExpireInMinutes")),
+                    UserId = user.Id,
+                    Roles = [.. roles]
                 };
             }
-
-            var result = await _userManager.CheckPasswordAsync(user, loginUser.Password);
-
-            if (!result)
+            catch(Exception ex)
             {
-                // Increment failed login count
-                await _userManager.AccessFailedAsync(user);
-                return new LoginResult 
-                { 
-                    Success = false, 
-                    Message = AuthErrorMessages.InvalidLoginAttempt,
-                    Errors = [$"{AuthErrorMessages.InvalidLoginAttempt}"]
-                };
+                _logger.LogError(ex, "An error occurred during user login for email {Email}", loginUser.Email);
+                throw;
             }
-            else
-            {
-                // Reset failed count on successful login
-                await _userManager.ResetAccessFailedCountAsync(user);
-            }
-
-            // Generate regular JWT token
-            var tokenString = await GenerateTokenString(loginUser);
-            var roles = await _userManager.GetRolesAsync(user);
-
-            return new LoginResult
-            {
-                Success = true,
-                Message = AuthSuccessMessages.LoginSuccess,
-                Token = tokenString,
-                Expiration = DateTime.Now.AddMinutes(_config.GetValue<int>("Jwt:ExpireInMinutes")),
-                UserId = user.Id,
-                Roles = [.. roles]
-            };
         }
 
         public async Task<string> GenerateTokenString(LoginUser loginUser)
