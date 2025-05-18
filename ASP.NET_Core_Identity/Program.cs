@@ -25,11 +25,11 @@ builder.Services.AddCors(options =>
 
 // Update the DbContext configuration to include the required ServerVersion parameter for MySQL.  
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-   options.UseMySql(
-       //options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-       builder.Configuration.GetConnectionString("DefaultConnection"),
-       ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))
-   ));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+   //options.UseMySql(
+   //    builder.Configuration.GetConnectionString("DefaultConnection"),
+   //    ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))
+   //));
 
 // Add Identity
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()

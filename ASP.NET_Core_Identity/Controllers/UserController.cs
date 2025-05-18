@@ -10,6 +10,7 @@ namespace ASP.NET_Core_Identity.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class UserController : ControllerBase
     {
         private readonly ILogger<UserController> _logger;
@@ -27,7 +28,6 @@ namespace ASP.NET_Core_Identity.Controllers
         }
 
         [HttpGet("UserInfo")]
-        [Authorize]
         public async Task<IActionResult> GetUserInfo()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -50,7 +50,7 @@ namespace ASP.NET_Core_Identity.Controllers
             });
         }
 
-        [HttpGet]
+        [HttpGet("GetAll")]
         public async Task<ActionResult<IEnumerable<UserDTO>>> GetAll([FromQuery] PagedRequest request)
         {
             try
